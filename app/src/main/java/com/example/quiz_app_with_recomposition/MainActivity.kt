@@ -30,9 +30,12 @@ fun QuizApp() {
         Pair("What is 4 / 2", "2")
     )
 
-    var currentIndex by remember { mutableIntStateOf(0) }
+    var currentIndex by remember { mutableStateOf(0) }
     var userInput by remember { mutableStateOf("") }
+    var remainingChances by remember { mutableStateOf(3) }
     var isQuizComplete by remember { mutableStateOf(false) }
+    val incorrectAnswers = remember { mutableStateListOf<Pair<String, String>>() }
+    var correctAnswers by remember { mutableStateOf(0) }
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
@@ -45,11 +48,24 @@ fun QuizApp() {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(text = "Quiz Complete!", style = MaterialTheme.typography.headlineMedium)
+            Text(text = "Correct answers: $correctAnswers / ${questions.size}")
+            Spacer(modifier = Modifier.height(16.dp))
+
+            if (incorrectAnswers.isNotEmpty()) {
+                Text(text = "Review Incorrect Answers:")
+                incorrectAnswers.forEach { (question, correctAnswer) ->
+                    Text(text = "$question\nCorrect Answer: $correctAnswer")
+                }
+            }
+
             Spacer(modifier = Modifier.height(16.dp))
             Button(onClick = {
                 currentIndex = 0
                 userInput = ""
+                remainingChances = 3
+                correctAnswers = 0
                 isQuizComplete = false
+                incorrectAnswers.clear()
             }) {
                 Text("Restart Quiz")
             }
@@ -88,15 +104,32 @@ fun QuizApp() {
                     scope.launch {
                         snackbarHostState.showSnackbar("Correct!")
                     }
+                    correctAnswers++
                     if (currentIndex < questions.size - 1) {
                         currentIndex++
                         userInput = ""
+                        remainingChances = 3
                     } else {
                         isQuizComplete = true
                     }
                 } else {
-                    scope.launch {
-                        snackbarHostState.showSnackbar("Incorrect, try again!")
+                    remainingChances--
+                    if (remainingChances > 0) {
+                        scope.launch {
+                            snackbarHostState.showSnackbar("Incorrect! $remainingChances chances left.")
+                        }
+                    } else {
+                        incorrectAnswers.add(questions[currentIndex])
+                        scope.launch {
+                            snackbarHostState.showSnackbar("Out of chances! Moving to the next question.")
+                        }
+                        if (currentIndex < questions.size - 1) {
+                            currentIndex++
+                            userInput = ""
+                            remainingChances = 3
+                        } else {
+                            isQuizComplete = true
+                        }
                     }
                 }
             }) {
@@ -104,6 +137,7 @@ fun QuizApp() {
             }
 
             Spacer(modifier = Modifier.height(16.dp))
+
 
             SnackbarHost(hostState = snackbarHostState)
         }
